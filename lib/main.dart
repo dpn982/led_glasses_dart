@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
           builder: (c, snapshot) {
             final state = snapshot.data;
             if (state == BluetoothState.on) {
-              return FindDevicesScreen();
+              return const FindDevicesScreen();
             }
             return BluetoothOffScreen(state: state);
           }),

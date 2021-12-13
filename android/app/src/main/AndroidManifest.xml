@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <application
         android:icon="@mipmap/ic_launcher"
-        android:label="led_glasses">
+        android:label="Led Glasses">
         <activity
             android:name=".MainActivity"
             android:exported="true"

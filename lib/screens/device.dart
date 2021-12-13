@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:core';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
@@ -6,16 +8,19 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class DeviceScreen extends StatefulWidget {
   final BluetoothDevice device;
+  final bool isConnected;
 
-  const DeviceScreen({Key? key, required this.device}) : super(key: key);
+  const DeviceScreen(
+      {Key? key, required this.device, required this.isConnected})
+      : super(key: key);
 
   @override
   State<DeviceScreen> createState() => _DeviceScreenState();
 }
 
 class _DeviceScreenState extends State<DeviceScreen> {
-  Color color1 = Colors.deepOrange;
-  Color color2 = Colors.deepPurple;
+  Color color1 = Colors.black;
+  Color color2 = Colors.black;
   String textToSend = "";
   late BluetoothService uartService;
   late BluetoothCharacteristic tx;
@@ -53,9 +58,9 @@ class _DeviceScreenState extends State<DeviceScreen> {
     Colors.grey,
     Colors.blueGrey,
     Colors.black,
-    Color.fromARGB(100,255,0,0),
-    Color.fromARGB(100,0,255,0),
-    Color.fromARGB(100,0,0,255),
+    Color.fromARGB(100, 255, 0, 0),
+    Color.fromARGB(100, 0, 255, 0),
+    Color.fromARGB(100, 0, 0, 255),
   ];
 
   void changeColor1(Color color) => setState(() => color1 = color);
@@ -116,7 +121,30 @@ class _DeviceScreenState extends State<DeviceScreen> {
   @override
   void initState() {
     super.initState();
-    connect();
+
+    if (!widget.isConnected) {
+      connect();
+    } else {
+      discoverBluetoothServices().then((value) {
+        setState(() {
+          isConnected = true;
+        });
+      });
+    }
+  }
+
+  // @override
+  // void dispose() {
+  //   super.dispose();
+  //   disconnect();
+  // }
+
+  void showSnackBar(BuildContext context, String message, Color c) {
+    var snackBar = SnackBar(
+      content: Text(message),
+      backgroundColor: c,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   List<int> appendCrc(List<int> data) {
@@ -130,24 +158,85 @@ class _DeviceScreenState extends State<DeviceScreen> {
     return data;
   }
 
-  Future<void> send() async {
+  Future<void> send(BuildContext context) async {
     if (isConnected) {
-      await tx.write(formatColorAsText(1, color1));
-      await tx.write(formatColorAsText(2, color2));
-      await tx.write(_textToListInt('TEXT=$textToSend'));
-      await tx.write(_textToListInt('SHOW'));
+      final dialogContextCompleter = Completer<BuildContext>();
+
+      try {
+        //await _setMTU(512);
+        //await widget.device.requestMtu(512);
+        //await Future.delayed(const Duration(seconds: 10));
+
+        showDialog(
+          builder: (BuildContext context) {
+            if (!dialogContextCompleter.isCompleted) {
+              dialogContextCompleter.complete(context);
+            }
+            return const SimpleDialog(
+              title: Center(
+                child: Text("Sending To Device"),
+              ),
+              children: <Widget>[
+                Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: null,
+                      strokeWidth: 10.0,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+          context: context,
+        );
+
+        var commandText = "SHOW";
+
+        developer.log("Sending Payload", name: "Device Send");
+        await tx.write(_textToListInt('TEXT=$textToSend'));
+        await tx.write(formatColorsAsText(1, color1));
+        await tx.write(formatColorsAsText(2, color2));
+        await tx.write(_textToListInt(commandText));
+        showSnackBar(context, "Success", Colors.green);
+      } catch (exception, stacktrace) {
+        showSnackBar(context, 'Error Sending Message To Device.', Colors.red);
+
+        developer.log(exception.toString(), name: "Device Send");
+        developer.log(stacktrace.toString(), name: "Device Send");
+      } finally {
+        final dialogContext = await dialogContextCompleter.future;
+        Navigator.pop(dialogContext);
+      }
+    } else {
+      showSnackBar(
+          context, "Not Connected Please Connect Before Sending.", Colors.red);
     }
   }
 
-  List<int> formatColorAsText(int n, Color c) {
-    List<int> colorValue = [
-      n,
-      c.red,
-      c.green,
-      c.blue
-    ];
+  Future<void> _setMTU(int value) async {
+    final startMtu = await widget.device.mtu.first;
+    await widget.device.requestMtu(
+        value); // I would await this regardless, set a timeout if you are concerned
 
-    String result = 'COLOR=${colorValue.join(",")}';
+    var mtuChanged = Completer<void>();
+
+// mtu is of type 'int'
+    var mtuStreamSubscription = widget.device.mtu.listen((mtu) {
+      if (mtu == value) {
+        developer.log('Current MTU: $mtu', name: "Set Device MTU");
+        mtuChanged.complete();
+      }
+    });
+
+    await mtuChanged.future; // set timeout and catch exception
+    mtuStreamSubscription.cancel();
+  }
+
+  List<int> formatColorsAsText(int number, Color c) {
+    List<int> colorValue = [c.red, c.green, c.blue];
+    String result = 'COLOR$number=${colorValue.join(",")}';
     return _textToListInt(result);
   }
 
@@ -161,54 +250,116 @@ class _DeviceScreenState extends State<DeviceScreen> {
     return outList;
   }
 
-  List<int> _formatColor(Color c) {
-    List<int> result = [
-      '!'.codeUnitAt(0),
-      'C'.codeUnitAt(0),
-      c.red,
-      c.green,
-      c.blue
-    ];
+  // List<int> _formatColor(Color c) {
+  //   List<int> result = [
+  //     '!'.codeUnitAt(0),
+  //     'C'.codeUnitAt(0),
+  //     c.red,
+  //     c.green,
+  //     c.blue
+  //   ];
+  //
+  //   result = appendCrc(result);
+  //
+  //   developer.log("Result" + result.toString(), name: "device");
+  //   return result;
+  // }
 
-    result = appendCrc(result);
-
-    print("Result" + result.toString());
-    return result;
-  }
-
-  void connect() {
+  Future<void> connect() async {
     widget.device.connect().then((value) {
-      discoverBluetoothServices();
-      isConnected = true;
+      discoverBluetoothServices().then((value) {
+        setState(() {
+          isConnected = true;
+        });
+      });
     });
   }
 
   void disconnect() {
     widget.device.disconnect().then((value) {
-      isConnected = false;
+      setState(() {
+        isConnected = false;
+      });
     });
   }
 
-  Future<Null> discoverBluetoothServices() async {
+  Future<void> discoverBluetoothServices() async {
     widget.device.discoverServices().then((value) {
       for (var service in value) {
+        developer.log(service.uuid.toString(), name: "Discover Services");
         if (service.uuid.toString() == _uartServiceUUID) {
           uartService = service;
         }
       }
 
       for (var c in uartService.characteristics) {
+        developer.log(c.uuid.toString(),
+            name: "Discover Characteristics Services");
         if (c.uuid.toString() == _uartTxCharacteristicUUID) {
+          developer.log("TX Found", name: "Discover Characteristics Services");
           tx = c;
         } else if (c.uuid.toString() == _uartRxCharacteristicUUID) {
+          developer.log("RX Found", name: "Discover Characteristics Services");
           rx = c;
         }
       }
     });
   }
 
+  Future showColorDialog(Color currentColor) {
+    Color pickerColor = currentColor;
+    List<Color> colorHistory = [];
+
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Pick a color!'),
+          content: SingleChildScrollView(
+            child: ColorPicker(
+              pickerColor: pickerColor,
+              enableAlpha: true,
+              displayThumbColor: true,
+              hexInputBar: true,
+              colorHistory: colorHistory,
+              onHistoryChanged: (List<Color> colors) => colorHistory = colors,
+              onColorChanged: (value) {
+                setState(() {
+                  pickerColor = value;
+                });
+              },
+            ),
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              child: const Text('Reset'),
+              onPressed: () {
+                setState(() => pickerColor = currentColor);
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Save'),
+              onPressed: () {
+                Navigator.pop(context, pickerColor);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    String? selectedType;
+    RoundedRectangleBorder cardBorder = RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(5.0),
+        side: const BorderSide(
+          color: Colors.black,
+          width: 5.0,
+        ));
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.device.name),
@@ -247,101 +398,192 @@ class _DeviceScreenState extends State<DeviceScreen> {
           )
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
+      body: Container(
+        color: Colors.grey,
+        child: ListView(
+          //mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
-            ExpansionTile(
-              title: const Text("Color 1"),
-              leading: Container(
-                margin: const EdgeInsets.all(10.0),
-                color: color1,
-                width: 48.0,
-                height: 48.0,
-              ),
-              children: <Widget>[
-                BlockPicker(
-                  pickerColor: color1,
-                  onColorChanged: changeColor1,
-                  availableColors: colors,
-                  layoutBuilder: pickerLayoutBuilder,
-                  itemBuilder: pickerItemBuilder,
-                ),
-              ],
-            ),
-            ExpansionTile(
-              title: const Text("Color 2"),
-              leading: Container(
-                margin: const EdgeInsets.all(10.0),
-                color: color2,
-                width: 48.0,
-                height: 48.0,
-              ),
-              children: <Widget>[
-                BlockPicker(
-                  pickerColor: color2,
-                  onColorChanged: changeColor2,
-                  availableColors: colors,
-                  layoutBuilder: pickerLayoutBuilder,
-                  itemBuilder: pickerItemBuilder,
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextFormField(
-                initialValue: textToSend,
-                keyboardType: TextInputType.multiline,
-                maxLines: 10,
-                decoration: const InputDecoration(
-                  prefixText: "",
-                  labelText: "",
-                  labelStyle: TextStyle(
-                    fontSize: 18.0,
-                    color: Colors.black,
-                  ),
-                  fillColor: Colors.white,
-                  focusColor: Colors.white,
-                  filled: false,
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      width: 1.0,
-                      color: Colors.black,
+            Card(
+              elevation: 5.0,
+              shape: cardBorder,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ListTile(
+                  leading: SizedBox(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color1,
+                      ),
                     ),
+                    width: 48.0,
+                    height: 48.0,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      width: 1.0,
-                      color: Colors.black,
-                    ),
-                  ),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      width: 1.0,
-                      color: Colors.black,
-                    ),
+                  title: const Text("Type"),
+                  trailing: DropdownButton<String>(
+                    items: <String>['A', 'B', 'C', 'D'].map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedType = value;
+                      });
+                    },
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    textToSend = value;
-                  });
-                },
               ),
             ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ElevatedButton(
-                  onPressed: () => send(),
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0.0,
+            Card(
+              elevation: 5.0,
+              shape: cardBorder,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ListTile(
+                  leading: SizedBox(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color1,
+                      ),
+                    ),
+                    width: 48.0,
+                    height: 48.0,
                   ),
-                  child: Text("Send"),
+                  title: const Text("Color 1"),
+                  trailing: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        showColorDialog(color1).then((value) => color1 = value);
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0.0,
+                    ),
+                    child: const Text("Choose Color"),
+                  ),
                 ),
-              ],
-            )
+              ),
+            ),
+            Card(
+              elevation: 5.0,
+              shape: cardBorder,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ListTile(
+                  leading: SizedBox(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color2,
+                      ),
+                    ),
+                    width: 48.0,
+                    height: 48.0,
+                  ),
+                  title: const Text("Color 2"),
+                  trailing: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        showColorDialog(color2).then((value) => color2 = value);
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0.0,
+                    ),
+                    child: const Text("Choose Color"),
+                  ),
+                ),
+              ),
+            ),
+            Card(
+              elevation: 5.0,
+              shape: cardBorder,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextFormField(
+                  initialValue: textToSend,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    prefixText: "",
+                    labelText: "",
+                    labelStyle: TextStyle(
+                      fontSize: 18.0,
+                      color: Colors.black,
+                    ),
+                    fillColor: Colors.white,
+                    focusColor: Colors.white,
+                    filled: false,
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        width: 1.0,
+                        color: Colors.black,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        width: 1.0,
+                        color: Colors.black,
+                      ),
+                    ),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        width: 1.0,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      textToSend = value;
+                    });
+                  },
+                ),
+              ),
+            ),
+            Card(
+              elevation: 5.0,
+              shape: cardBorder,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          textToSend = "";
+                          color1 = Colors.black;
+                          color2 = Colors.black;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0.0,
+                      ),
+                      child: const Text("Reset"),
+                    ),
+                    const SizedBox(
+                      width: 20,
+                    ),
+                    ElevatedButton(
+                      onPressed: () => isConnected ? send(context) : null,
+                      style: isConnected
+                          ? ElevatedButton.styleFrom(
+                              elevation: 0.0,
+                            )
+                          : ElevatedButton.styleFrom(
+                              elevation: 0.0,
+                              primary: Colors.grey,
+                              splashFactory: NoSplash.splashFactory,
+                              shadowColor: Colors.transparent,
+                            ),
+                      child: const Text("Send"),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

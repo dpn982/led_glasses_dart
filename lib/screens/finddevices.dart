@@ -4,6 +4,8 @@ import 'package:led_glasses/screens/device.dart';
 import 'package:led_glasses/screens/resulttile.dart';
 
 class FindDevicesScreen extends StatefulWidget {
+  const FindDevicesScreen({Key? key}) : super(key: key);
+
   @override
   FindDevicesScreenState createState() => FindDevicesScreenState();
 }
@@ -11,6 +13,7 @@ class FindDevicesScreen extends StatefulWidget {
 class FindDevicesScreenState extends State<FindDevicesScreen> {
   @override
   void initState() {
+    super.initState();
     FlutterBlue.instance.startScan(timeout: const Duration(seconds: 4));
   }
 
@@ -28,31 +31,42 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
             builder: (c, snapshot) {
               if (snapshot.data!) {
                 return ElevatedButton(
-                  child: const Icon(Icons.stop),
+                  child: const Icon(
+                    Icons.stop,
+                    color: Colors.red,
+                  ),
                   onPressed: () => FlutterBlue.instance.stopScan(),
                   style: ElevatedButton.styleFrom(
                     elevation: 0.0,
-                    primary: Colors.red,
                   ),
                 );
               } else {
                 return ElevatedButton(
-                  child: const Icon(Icons.sync),
+                  child: const Icon(
+                    Icons.sync,
+                    color: Colors.white,
+                  ),
                   onPressed: () => FlutterBlue.instance
                       .startScan(timeout: const Duration(seconds: 4)),
                   style: ElevatedButton.styleFrom(
                     elevation: 0.0,
-                    primary: Colors.deepPurple,
                   ),
                 );
               }
             },
           ),
+          ElevatedButton(
+            child: const Icon(Icons.settings),
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              elevation: 0.0,
+            ),
+          ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () =>
-            FlutterBlue.instance.startScan(timeout: Duration(seconds: 4)),
+            FlutterBlue.instance.startScan(timeout: const Duration(seconds: 4)),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics()),
@@ -75,11 +89,11 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
                                 if (snapshot.data ==
                                     BluetoothDeviceState.connected) {
                                   return ElevatedButton(
-                                    child: Text('OPEN'),
+                                    child: const Text('OPEN'),
                                     onPressed: () => Navigator.of(context).push(
                                         MaterialPageRoute(
-                                            builder: (context) =>
-                                                DeviceScreen(device: d))),
+                                            builder: (context) => DeviceScreen(
+                                                device: d, isConnected: true))),
                                   );
                                 }
                                 return Text(snapshot.data.toString());
@@ -100,7 +114,10 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
                           onTap: () => Navigator.of(context)
                               .push(MaterialPageRoute(builder: (context) {
                             //r.device.connect();
-                            return DeviceScreen(device: r.device);
+                            return DeviceScreen(
+                              device: r.device,
+                              isConnected: false,
+                            );
                           })),
                         ),
                       )
@@ -111,24 +128,6 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
           ),
         ),
       ),
-      /*   floatingActionButton: StreamBuilder<bool>(
-        stream: FlutterBlue.instance.isScanning,
-        initialData: false,
-        builder: (c, snapshot) {
-          if (snapshot.data!) {
-            return FloatingActionButton(
-              child: Icon(Icons.stop),
-              onPressed: () => FlutterBlue.instance.stopScan(),
-              backgroundColor: Colors.red,
-            );
-          } else {
-            return FloatingActionButton(
-                child: Icon(Icons.search),
-                onPressed: () => FlutterBlue.instance
-                    .startScan(timeout: Duration(seconds: 4)));
-          }
-        },
-      ),*/
     );
   }
 }
