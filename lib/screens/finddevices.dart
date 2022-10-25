@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue/flutter_blue.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:led_glasses/screens/device.dart';
 import 'package:led_glasses/screens/resulttile.dart';
 
@@ -14,7 +14,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
   @override
   void initState() {
     super.initState();
-    FlutterBlue.instance.startScan(timeout: const Duration(seconds: 4));
+    FlutterBluePlus.instance.startScan(timeout: const Duration(seconds: 4));
   }
 
   @override
@@ -26,7 +26,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
         title: const Text('Find Devices'),
         actions: <Widget>[
           StreamBuilder<bool>(
-            stream: FlutterBlue.instance.isScanning,
+            stream: FlutterBluePlus.instance.isScanning,
             initialData: false,
             builder: (c, snapshot) {
               if (snapshot.data!) {
@@ -35,7 +35,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
                     Icons.stop,
                     color: Colors.red,
                   ),
-                  onPressed: () => FlutterBlue.instance.stopScan(),
+                  onPressed: () => FlutterBluePlus.instance.stopScan(),
                   style: ElevatedButton.styleFrom(
                     elevation: 0.0,
                   ),
@@ -46,7 +46,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
                     Icons.sync,
                     color: Colors.white,
                   ),
-                  onPressed: () => FlutterBlue.instance
+                  onPressed: () => FlutterBluePlus.instance
                       .startScan(timeout: const Duration(seconds: 4)),
                   style: ElevatedButton.styleFrom(
                     elevation: 0.0,
@@ -66,7 +66,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () =>
-            FlutterBlue.instance.startScan(timeout: const Duration(seconds: 4)),
+            FlutterBluePlus.instance.startScan(timeout: const Duration(seconds: 4)),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics()),
@@ -75,7 +75,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
             children: <Widget>[
               StreamBuilder<List<BluetoothDevice>>(
                 stream: Stream.periodic(const Duration(seconds: 2))
-                    .asyncMap((_) => FlutterBlue.instance.connectedDevices),
+                    .asyncMap((_) => FlutterBluePlus.instance.connectedDevices),
                 initialData: const [],
                 builder: (c, snapshot) => Column(
                   children: snapshot.data!
@@ -104,7 +104,7 @@ class FindDevicesScreenState extends State<FindDevicesScreen> {
                 ),
               ),
               StreamBuilder<List<ScanResult>>(
-                stream: FlutterBlue.instance.scanResults,
+                stream: FlutterBluePlus.instance.scanResults,
                 initialData: const [],
                 builder: (c, snapshot) => Column(
                   children: snapshot.data!

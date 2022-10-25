@@ -3,7 +3,7 @@ import 'dart:core';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_blue/flutter_blue.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class DeviceScreen extends StatefulWidget {
@@ -36,6 +36,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
       "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
   final String _uartRxCharacteristicUUID =
       "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+  String? selectedType;
 
   static const List<Color> colors = [
     Colors.red,
@@ -195,10 +196,18 @@ class _DeviceScreenState extends State<DeviceScreen> {
         var commandText = "SHOW";
 
         developer.log("Sending Payload", name: "Device Send");
-        await tx.write(_textToListInt('TEXT=$textToSend'));
-        await tx.write(formatColorsAsText(1, color1));
-        await tx.write(formatColorsAsText(2, color2));
-        await tx.write(_textToListInt(commandText));
+        await Future.delayed(const Duration(seconds: 1), () async {
+          await tx.write(_textToListInt('TEXT=$textToSend'));
+        });
+        await Future.delayed(const Duration(seconds: 1), () async {
+          await tx.write(formatColorsAsText(1, color1));
+        });
+        await Future.delayed(const Duration(seconds: 1), () async {
+          await tx.write(formatColorsAsText(2, color2));
+        });
+        await Future.delayed(const Duration(seconds: 1), () async {
+          await tx.write(_textToListInt(commandText));
+        });
         showSnackBar(context, "Success", Colors.green);
       } catch (exception, stacktrace) {
         showSnackBar(context, 'Error Sending Message To Device.', Colors.red);
@@ -236,7 +245,9 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
   List<int> formatColorsAsText(int number, Color c) {
     List<int> colorValue = [c.red, c.green, c.blue];
+
     String result = 'COLOR$number=${colorValue.join(",")}';
+    developer.log(result);
     return _textToListInt(result);
   }
 
@@ -352,7 +363,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String? selectedType;
     RoundedRectangleBorder cardBorder = RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(5.0),
         side: const BorderSide(
@@ -387,7 +397,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
               return ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     elevation: 0.0,
-                    primary: Colors.black,
+                    backgroundColor: Colors.black,
                     textStyle: const TextStyle(
                       color: Colors.white,
                     ),
@@ -409,26 +419,28 @@ class _DeviceScreenState extends State<DeviceScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: ListTile(
-                  leading: SizedBox(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: color1,
-                      ),
-                    ),
+                  leading: const SizedBox(
                     width: 48.0,
                     height: 48.0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
                   title: const Text("Type"),
                   trailing: DropdownButton<String>(
+                    hint: const Text("Select a type"),
+                    value: selectedType,
                     items: <String>['A', 'B', 'C', 'D'].map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(value),
                       );
                     }).toList(),
-                    onChanged: (value) {
+                    onChanged: (selectedValue) {
                       setState(() {
-                        selectedType = value;
+                        selectedType = selectedValue;
                       });
                     },
                   ),
@@ -442,19 +454,21 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: ListTile(
                   leading: SizedBox(
+                    width: 48.0,
+                    height: 48.0,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: color1,
                       ),
                     ),
-                    width: 48.0,
-                    height: 48.0,
                   ),
                   title: const Text("Color 1"),
                   trailing: ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        showColorDialog(color1).then((value) => color1 = value);
+                      showColorDialog(color1).then((value) {
+                        setState(() {
+                          color1 = value;
+                        });
                       });
                     },
                     style: ElevatedButton.styleFrom(
@@ -472,20 +486,22 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: ListTile(
                   leading: SizedBox(
+                    width: 48.0,
+                    height: 48.0,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: color2,
                       ),
                     ),
-                    width: 48.0,
-                    height: 48.0,
                   ),
                   title: const Text("Color 2"),
                   trailing: ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        showColorDialog(color2).then((value) => color2 = value);
-                      });
+                        showColorDialog(color2).then((value) {
+                          setState(() {
+                            color2 = value;
+                          });
+                        });
                     },
                     style: ElevatedButton.styleFrom(
                       elevation: 0.0,
@@ -574,7 +590,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                             )
                           : ElevatedButton.styleFrom(
                               elevation: 0.0,
-                              primary: Colors.grey,
+                              backgroundColor: Colors.grey,
                               splashFactory: NoSplash.splashFactory,
                               shadowColor: Colors.transparent,
                             ),
